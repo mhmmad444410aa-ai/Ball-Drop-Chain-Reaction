@@ -1,0 +1,89 @@
+name: Import game source and test Android build
+on:
+  push:
+    paths:
+      - BallDropChainReaction-source.zip
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Verify and extract project archive
+        shell: bash
+        run: |
+          test -s BallDropChainReaction-source.zip || { echo 'Source ZIP is missing. Upload BallDropChainReaction-source.zip to repository root.'; exit 1; }
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import PurePosixPath
+          z = ZipFile("BallDropChainReaction-source.zip")
+          names = z.namelist()
+          assert names and len(names) >= 50, "Source archive appears incomplete"
+          for name in names:
+              p = PurePosixPath(name)
+              assert not p.is_absolute() and ".." not in p.parts, f"Unsafe archive path: {name}"
+              assert p.parts[0] == "BallDropChainReaction", f"Unexpected archive root: {name}"
+          assert "BallDropChainReaction/app/build.gradle.kts" in names
+          assert "BallDropChainReaction/app/src/main/java/com/mhmmad/balldropchainreaction/PhysicsScene.kt" in names
+          assert "BallDropChainReaction/.github/workflows/android.yml" in names
+          z.extractall("_imported")
+          print(f"Validated and extracted {len(names)} files")
+          PY
+          cp -a _imported/BallDropChainReaction/. .
+          rm -rf _imported
+
+      - name: Commit expanded sources
+        shell: bash
+        run: |
+          rm -f BallDropChainReaction-source.zip
+          rm -f .github/workflows/import-source.yml
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Import complete Android source, game artwork and workflows'
+            git push origin HEAD:main
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+
+      - name: Install Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Run source validation
+        run: |
+          python3 -m pip install --user pillow
+          python3 tools/validate_project.py
+
+      - name: Compile and test; diagnose errors on failure
+        run: gradle --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest
+
+      - name: Publish debug APK for testing only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ball-drop-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
