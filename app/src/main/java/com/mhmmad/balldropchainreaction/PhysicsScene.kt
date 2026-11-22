@@ -75,7 +75,7 @@ class PhysicsScene(val level: Level, val placed: List<Placed> = emptyList()) {
     private fun addProp(tool: Tool,x: Float,y: Float,angle: Float) {
         when(tool) {
             Tool.PLANK -> actors += Actor(staticRect(x,y,2.6f,.22f,radians(angle)),"plank",2.6f,.42f)
-            Tool.DOMINO -> actors += Actor(dynamicRect(x,y,.22f,.86f,radians(angle),.85f),"domino",.31f,.92f)
+            Tool.DOMINO -> actors += Actor(dynamicRect(x,y,.22f,.86f,radians(angle),.15f),"domino",.31f,.92f)
             Tool.SPRING -> {
                 val b=staticRect(x,y,.86f,.40f,0f,bounce=.65f)
                 springs+=b; actors+=Actor(b,"spring",.94f,.70f)
@@ -108,7 +108,7 @@ class PhysicsScene(val level: Level, val placed: List<Placed> = emptyList()) {
             val dx=abs(ball.position.x-spring.position.x)
             val v=ball.linearVelocity
             if(dx<.62f && dy in .25f..1.0f && v.y<.7f && time-(springCooldown[spring] ?: -9f)>.35f) {
-                ball.applyLinearImpulse(Vec2(0f,ball.mass*7.2f),ball.worldCenter)
+                ball.applyLinearImpulse(Vec2(0f,ball.mass*2.4f),ball.worldCenter)
                 springCooldown[spring]=time
             }
         }
