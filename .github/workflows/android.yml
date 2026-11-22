@@ -35,8 +35,18 @@ jobs:
         shell: bash
         run: |
           if ls app/build/test-results/testDebugUnitTest/TEST-*.xml >/dev/null 2>&1; then
-            grep -h -o 'PHYSICS_AUDIT[^<]*' app/build/test-results/testDebugUnitTest/TEST-*.xml || true
+            grep -h -o 'PHYSICS_[A-Z0-9_]+[^<]*' app/build/test-results/testDebugUnitTest/TEST-*.xml || true
           fi
+      - name: Copy JBox2D runtime for standalone level simulation
+        run: |
+          find "$HOME/.gradle/caches/modules-2/files-2.1/org.jbox2d/jbox2d-library" -name '*.jar' -print -quit | xargs -r -I{} cp '{}' jbox2d-library.jar
+          test -s jbox2d-library.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jbox2d-physics-runtime
+          path: jbox2d-library.jar
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload debug APK (testing, not store release)
         uses: actions/upload-artifact@v4
         with:

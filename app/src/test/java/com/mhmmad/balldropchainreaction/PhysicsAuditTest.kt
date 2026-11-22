@@ -7,13 +7,15 @@ import org.junit.Test
 class PhysicsAuditTest {
     @Test fun allTwentyScenesStayFinite() {
         var successes = 0
+        val trace = mutableListOf<String>()
         val terminal = mutableMapOf<Int, PhysicsScene.Status>()
         for (level in LevelCatalog.levels) {
             val scene = PhysicsScene(level, listOf(level.hint))
             scene.run()
-            repeat(60 * 24) {
+            repeat(60 * 24) { step ->
                 scene.step()
                 val position = scene.ballPosition()
+                if (level.id == 1 && step % 60 == 0) trace.add("${step / 60}s: ${position.x},${position.y} [${scene.status}]")
                 assertTrue("Non-finite physics X in level ${level.id}", position.x.isFinite())
                 assertTrue("Non-finite physics Y in level ${level.id}", position.y.isFinite())
             }
@@ -22,6 +24,7 @@ class PhysicsAuditTest {
             scene.destroy()
         }
         println("PHYSICS_AUDIT simulated=20, solved_with_single_hint=$successes, terminal=$terminal")
+        println("PHYSICS_TRACE_L1 ${trace.joinToString(" | ")}")
         assertTrue("Unexpected missing test catalog", terminal.size == 20)
     }
     @Test fun gravityAcceleratesBall() {
