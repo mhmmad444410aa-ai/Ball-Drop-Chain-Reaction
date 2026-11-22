@@ -52,6 +52,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.PI
 import kotlin.math.min
+import kotlin.math.abs
 import kotlin.math.sin
 
 private enum class Screen { MENU, WORLDS, LEVELS, PLAY, SETTINGS, ABOUT, VICTORY, FAILED }
