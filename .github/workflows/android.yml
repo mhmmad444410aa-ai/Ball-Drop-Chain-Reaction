@@ -35,7 +35,17 @@ jobs:
         shell: bash
         run: |
           if ls app/build/test-results/testDebugUnitTest/TEST-*.xml >/dev/null 2>&1; then
-            grep -h -o 'PHYSICS_[A-Z0-9_]+[^<]*' app/build/test-results/testDebugUnitTest/TEST-*.xml || true
+            python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          for file in pathlib.Path('app/build/test-results/testDebugUnitTest').glob('TEST-*.xml'):
+              root=ET.parse(file).getroot()
+              for test in root.iter('testcase'):
+                  for failure in test.findall('failure'):
+                      print('STAGE_TEST_FAILURE:',test.get('name'),failure.get('message')[:10000])
+              for system in root.findall('system-out'):
+                  for line in (system.text or '').splitlines():
+                      if 'PHYSICS_' in line: print(line[:10000])
+          PY
           fi
       - name: Copy JBox2D runtime for standalone level simulation
         run: |
