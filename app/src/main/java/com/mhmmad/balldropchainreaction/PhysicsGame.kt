@@ -42,9 +42,16 @@ private data class Viewport(val scale: Float,val left: Float,val bottom: Float) 
     fun y(y: Float): Float = bottom-y*scale
     fun toWorld(offset: Offset) = Pair((offset.x-left)/scale,(bottom-offset.y)/scale)
 }
+/** Reserve top and bottom strips for the HUD, keeping the goal visible. */
 private fun viewport(width: Float,height: Float,zoom: Float): Viewport {
-    val s=min(width/16f,height/9f)*zoom
-    return Viewport(s,(width-16f*s)/2f,(height+9f*s)/2f)
+    val top=height*.135f
+    val bottom=height*.755f
+    val worldBottom=2.0f
+    val worldTop=8.45f
+    val s=min(width/16f,(bottom-top)/(worldTop-worldBottom))*zoom
+    val arenaH=(worldTop-worldBottom)*s
+    val offset=(bottom-top-arenaH)*.5f
+    return Viewport(s,(width-16f*s)/2f,top+offset+worldTop*s)
 }
 
 @Composable
@@ -140,10 +147,23 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
             val refresh=frames
             drawIntoCanvas { canvas ->
                 val n=canvas.nativeCanvas
-                art.paint("playfield",n,RectF(0f,0f,size.width,size.height))
+                art.paint("workshop",n,RectF(0f,0f,size.width,size.height))
+                val stageVeil=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=android.graphics.Color.argb(37,3,28,62) }
+                n.drawRect(0f,size.height*.13f,size.width,size.height*.78f,stageVeil)
                 val v=viewport(size.width,size.height,zoom)
-                // Decorative physical floor, separated from the simulated static floor.
-                art.paint("platform",n,RectF(v.x(0f),v.y(.55f),v.x(16f),v.y(-.28f)))
+                // Structural support braces are visual only, separated from rigid bodies.
+                val steel=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color=android.graphics.Color.argb(165,83,151,184)
+                    strokeWidth=(v.scale*.12f).coerceAtLeast(2f)
+                }
+                val bolt=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=android.graphics.Color.rgb(250,203,112) }
+                for(ramp in level.ramps) {
+                    for(px in listOf(ramp.x-ramp.length*.27f,ramp.x+ramp.length*.27f)) {
+                        val py=ramp.y+(px-ramp.x)*kotlin.math.tan(PhysicsScene.radians(ramp.angle))
+                        n.drawLine(v.x(px),v.y(py),v.x(px),v.y(2.1f),steel)
+                        n.drawCircle(v.x(px),v.y(py),v.scale*.085f,bolt)
+                    }
+                }
                 val pulse=(sin(refresh*.095f)+1f)/2f
                 val glow=Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color=android.graphics.Color.argb((50+90*pulse).toInt(),255,198,21)
@@ -250,7 +270,8 @@ private fun SmallGameButton(text:String,onClick:()->Unit,enabled:Boolean=true,hi
         .background(if(!enabled)Color(0xFF3C4A57) else if(highlight)Color(0xFFF2A52F) else Color(0xFF186EAD))
         .border(1.dp,if(highlight)Color(0xFFFFE78B) else Color(0xFF69B8E6),RoundedCornerShape(11.dp))
         .clickable(enabled=enabled,onClick=onClick)
-        .padding(horizontal=if(compact)7.dp else 11.dp,vertical=if(compact)3.dp else 7.dp),contentAlignment=Alignment.Center) {
+        .defaultMinSize(minHeight=if(compact)34.dp else 40.dp)
+        .padding(horizontal=if(compact)7.dp else 11.dp,vertical=if(compact)4.dp else 7.dp),contentAlignment=Alignment.Center) {
         Text(text,color=Color.White,fontSize=if(compact)10.sp else 12.sp,fontWeight=FontWeight.ExtraBold,maxLines=1)
     }
 }
@@ -260,9 +281,9 @@ private fun ToolCell(art:ArtStore,tool:Tool,selected:Boolean,remaining:Int,compa
     Row(Modifier.clip(RoundedCornerShape(9.dp))
         .background(if(selected)Color(0xFF177AAF) else Color(0xFF133A65))
         .border(1.dp,if(selected)Color(0xFFFFD45F) else Color(0xFF38698D),RoundedCornerShape(9.dp))
-        .clickable(enabled=remaining>0,onClick=onClick).padding(horizontal=4.dp,vertical=2.dp),verticalAlignment=Alignment.CenterVertically) {
+        .clickable(enabled=remaining>0,onClick=onClick).padding(horizontal=6.dp,vertical=if(compact)4.dp else 5.dp),verticalAlignment=Alignment.CenterVertically) {
         if(sprite!=null) androidx.compose.foundation.Image(painter=androidx.compose.ui.graphics.painter.BitmapPainter(sprite.asImageBitmap()),
-            contentDescription=tool.name,modifier=Modifier.size(if(compact)24.dp else 35.dp))
+            contentDescription=tool.name,modifier=Modifier.size(if(compact)32.dp else 44.dp))
         Text("$remaining",color=if(remaining>0)Color.White else Color.Gray,fontSize=if(compact)10.sp else 12.sp,fontWeight=FontWeight.Bold)
     }
 }
