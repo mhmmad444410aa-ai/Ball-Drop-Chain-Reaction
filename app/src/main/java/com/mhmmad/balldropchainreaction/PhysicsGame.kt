@@ -149,9 +149,7 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
             val refresh=frames
             drawIntoCanvas { canvas ->
                 val n=canvas.nativeCanvas
-                art.paint("workshop",n,RectF(0f,0f,size.width,size.height))
-                val stageVeil=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=android.graphics.Color.argb(37,3,28,62) }
-                n.drawRect(0f,size.height*.13f,size.width,size.height*.78f,stageVeil)
+                Flat2DArt.backdrop(n,size.width,size.height,level.world,refresh)
                 val v=viewport(size.width,size.height,zoom)
                 // Two subtle animated metal gears add life without faking physics.
                 for ((index,pos) in listOf(3.15f to 4.23f, 10.9f to 4.19f).withIndex()) {
@@ -159,7 +157,7 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
                     val gy=v.y(pos.second)
                     val radius=v.scale*.54f
                     val turn=(if(index==0)1f else -1f)*refresh*.48f
-                    art.paint("gear",n,RectF(gx-radius,gy-radius,gx+radius,gy+radius),turn,155)
+                    Flat2DArt.decoration(n,gx,gy,radius,turn)
                 }
                 // Subtle luminous guide only in the opening tutorial stage.
                 if(level.id==1 && isEditing && placed.isEmpty()) {
@@ -195,15 +193,14 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
                     color=android.graphics.Color.argb((50+90*pulse).toInt(),255,198,21)
                 }
                 n.drawCircle(v.x(level.targetX),v.y(level.targetY),v.scale*(.64f+pulse*.1f),glow)
-                art.paint("target",n,RectF(v.x(level.targetX-.43f),v.y(level.targetY+.62f),
-                    v.x(level.targetX+.43f),v.y(level.targetY-.62f)))
+                Flat2DArt.goal(n,v.x(level.targetX),v.y(level.targetY),v.scale,pulse)
                 for(actor in scene.actors) {
                     val b=actor.body
                     val cx=v.x(b.position.x);val cy=v.y(b.position.y)
                     val halfW=actor.width*v.scale*.5f;val halfH=actor.height*v.scale*.5f
                     val dynamicRotation=-(b.angle*180f/PI.toFloat())
                     val springFlex=if(actor.image=="spring") 1f-.30f*scene.springCompression(b) else 1f
-                    art.paint(actor.image,n,RectF(cx-halfW,cy-halfH*springFlex,cx+halfW,cy+halfH*springFlex),dynamicRotation)
+                    Flat2DArt.actor(n,actor.image,cx,cy,halfW*2f,halfH*springFlex*2f,dynamicRotation)
                 }
                 // Each player-placed body is rendered from its own asset even before simulation.
                 if(isEditing) {
@@ -288,7 +285,7 @@ private fun drawTool(n:android.graphics.Canvas,art:ArtStore,v:Viewport,p:Placed,
     }
     val cx=v.x(p.x); val cy=v.y(p.y)
     val hw=dimensions.first*v.scale*.5f;val hh=dimensions.second*v.scale*.5f
-    art.paint(p.kind.asset,n,RectF(cx-hw,cy-hh,cx+hw,cy+hh),-p.angle,alpha)
+    Flat2DArt.actor(n,p.kind.asset,cx,cy,hw*2f,hh*2f,-p.angle,alpha)
 }
 @Composable
 private fun SmallGameButton(text:String,onClick:()->Unit,enabled:Boolean=true,highlight:Boolean=false,compact:Boolean=false) {
@@ -303,7 +300,6 @@ private fun SmallGameButton(text:String,onClick:()->Unit,enabled:Boolean=true,hi
 }
 @Composable
 private fun ToolCell(art:ArtStore,tool:Tool,selected:Boolean,remaining:Int,compact:Boolean,lang:String,onClick:()->Unit) {
-    val sprite=art.get(tool.asset)
     val title=when(tool) {
         Tool.PLANK -> when(lang) { "ar"->"لوح"; "pt"->"Tábua"; else->"Plank" }
         Tool.DOMINO -> when(lang) { "ar"->"دومينو"; "pt"->"Dominó"; else->"Domino" }
@@ -318,11 +314,13 @@ private fun ToolCell(art:ArtStore,tool:Tool,selected:Boolean,remaining:Int,compa
         .padding(horizontal=if(compact)7.dp else 10.dp,vertical=3.dp),
         horizontalAlignment=Alignment.CenterHorizontally) {
         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            if(sprite!=null) androidx.compose.foundation.Image(
-                painter=androidx.compose.ui.graphics.painter.BitmapPainter(sprite.asImageBitmap()),
-                contentDescription=title,
-                modifier=Modifier.size(if(compact)26.dp else 36.dp)
-            )
+            androidx.compose.foundation.Canvas(Modifier.size(if(compact)26.dp else 36.dp)) {
+                drawIntoCanvas { ctx ->
+                    val dimension = size.minDimension
+                    Flat2DArt.actor(ctx.nativeCanvas,tool.asset,size.width*.5f,size.height*.5f,
+                        dimension*.82f,dimension*.78f,0f)
+                }
+            }
             Text("×$remaining",color=if(remaining>0)Color.White else Color.Gray,
                 fontSize=if(compact)11.sp else 12.sp,fontWeight=FontWeight.Black)
         }
