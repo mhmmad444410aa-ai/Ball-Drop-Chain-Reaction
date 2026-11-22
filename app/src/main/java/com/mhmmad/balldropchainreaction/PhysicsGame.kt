@@ -44,14 +44,16 @@ private data class Viewport(val scale: Float,val left: Float,val bottom: Float) 
 }
 /** Reserve top and bottom strips for the HUD, keeping the goal visible. */
 private fun viewport(width: Float,height: Float,zoom: Float): Viewport {
-    val top=height*.135f
-    val bottom=height*.755f
-    val worldBottom=2.0f
-    val worldTop=8.45f
-    val s=min(width/16f,(bottom-top)/(worldTop-worldBottom))*zoom
-    val arenaH=(worldTop-worldBottom)*s
-    val offset=(bottom-top-arenaH)*.5f
-    return Viewport(s,(width-16f*s)/2f,top+offset+worldTop*s)
+    // The puzzle occupies y=~4.8..8.2; displaying the unused floor made
+    // balls and platforms tiny on phones. Fit the actual puzzle area instead.
+    val top=height*.12f
+    val bottom=height*.76f
+    val worldBottom=3.80f
+    val worldTop=8.35f
+    val scale=min(width/16.55f,(bottom-top)/(worldTop-worldBottom))*zoom
+    val contentH=(worldTop-worldBottom)*scale
+    val inset=(bottom-top-contentH)*.5f
+    return Viewport(scale,(width-16f*scale)/2f,top+inset+worldTop*scale)
 }
 
 @Composable
@@ -60,7 +62,7 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
     var scene by remember(level.id) { mutableStateOf(PhysicsScene(level)) }
     var placed by remember(level.id) { mutableStateOf(emptyList<Placed>()) }
     var selected by remember(level.id) { mutableStateOf(level.inventory.first()) }
-    var angle by remember(level.id) { mutableFloatStateOf(-12f) }
+    var angle by remember(level.id) { mutableFloatStateOf(level.hint.angle) }
     var zoom by remember(level.id) { mutableFloatStateOf(1f) }
     var ghost by remember(level.id) { mutableStateOf<Placed?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize(1600,900)) }
@@ -151,6 +153,30 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
                 val stageVeil=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=android.graphics.Color.argb(37,3,28,62) }
                 n.drawRect(0f,size.height*.13f,size.width,size.height*.78f,stageVeil)
                 val v=viewport(size.width,size.height,zoom)
+                // Two subtle animated metal gears add life without faking physics.
+                for ((index,pos) in listOf(3.15f to 4.23f, 10.9f to 4.19f).withIndex()) {
+                    val gx=v.x(pos.first)
+                    val gy=v.y(pos.second)
+                    val radius=v.scale*.54f
+                    val turn=(if(index==0)1f else -1f)*refresh*.48f
+                    art.paint("gear",n,RectF(gx-radius,gy-radius,gx+radius,gy+radius),turn,155)
+                }
+                // Subtle luminous guide only in the opening tutorial stage.
+                if(level.id==1 && isEditing && placed.isEmpty()) {
+                    val gx=v.x(level.hint.x)
+                    val gy=v.y(level.hint.y)
+                    val width=v.scale*2.65f
+                    val outline=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color=android.graphics.Color.argb((115+80*sin(refresh*.055f)).toInt().coerceIn(35,215),255,211,90)
+                        strokeWidth=(v.scale*.065f).coerceAtLeast(2f)
+                        style=Paint.Style.STROKE
+                        pathEffect=android.graphics.DashPathEffect(floatArrayOf(10f,7f),0f)
+                    }
+                    n.save()
+                    n.rotate(-level.hint.angle,gx,gy)
+                    n.drawRoundRect(RectF(gx-width/2f,gy-v.scale*.21f,gx+width/2f,gy+v.scale*.21f),v.scale*.10f,v.scale*.10f,outline)
+                    n.restore()
+                }
                 // Structural support braces are visual only, separated from rigid bodies.
                 val steel=Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color=android.graphics.Color.argb(165,83,151,184)
@@ -217,7 +243,7 @@ fun PhysicsGame(art: ArtStore,audio: GameAudio,level: Level,lang: String,sound: 
                 Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
                     level.inventory.distinct().forEach { tool ->
                         val remaining=toolLeft(tool)
-                        ToolCell(art,tool,selected==tool,remaining,compact){if(isEditing) selected=tool}
+                        ToolCell(art,tool,selected==tool,remaining,compact,lang){if(isEditing) selected=tool}
                     }
                 }
                 SmallGameButton(if(scene.status==PhysicsScene.Status.RUNNING)t("pause") else t("run"),{
@@ -276,14 +302,31 @@ private fun SmallGameButton(text:String,onClick:()->Unit,enabled:Boolean=true,hi
     }
 }
 @Composable
-private fun ToolCell(art:ArtStore,tool:Tool,selected:Boolean,remaining:Int,compact:Boolean,onClick:()->Unit) {
+private fun ToolCell(art:ArtStore,tool:Tool,selected:Boolean,remaining:Int,compact:Boolean,lang:String,onClick:()->Unit) {
     val sprite=art.get(tool.asset)
-    Row(Modifier.clip(RoundedCornerShape(9.dp))
-        .background(if(selected)Color(0xFF177AAF) else Color(0xFF133A65))
-        .border(1.dp,if(selected)Color(0xFFFFD45F) else Color(0xFF38698D),RoundedCornerShape(9.dp))
-        .clickable(enabled=remaining>0,onClick=onClick).padding(horizontal=6.dp,vertical=if(compact)4.dp else 5.dp),verticalAlignment=Alignment.CenterVertically) {
-        if(sprite!=null) androidx.compose.foundation.Image(painter=androidx.compose.ui.graphics.painter.BitmapPainter(sprite.asImageBitmap()),
-            contentDescription=tool.name,modifier=Modifier.size(if(compact)32.dp else 44.dp))
-        Text("$remaining",color=if(remaining>0)Color.White else Color.Gray,fontSize=if(compact)10.sp else 12.sp,fontWeight=FontWeight.Bold)
+    val title=when(tool) {
+        Tool.PLANK -> when(lang) { "ar"->"لوح"; "pt"->"Tábua"; else->"Plank" }
+        Tool.DOMINO -> when(lang) { "ar"->"دومينو"; "pt"->"Dominó"; else->"Domino" }
+        Tool.SPRING -> when(lang) { "ar"->"نابض"; "pt"->"Mola"; else->"Spring" }
+        Tool.SEESAW -> when(lang) { "ar"->"أرجوحة"; "pt"->"Balança"; else->"Seesaw" }
+        Tool.PIPE -> when(lang) { "ar"->"أنبوب"; "pt"->"Tubo"; else->"Pipe" }
+    }
+    Column(Modifier.clip(RoundedCornerShape(12.dp))
+        .background(if(selected)Color(0xFF146B9D) else Color(0xEF173757))
+        .border(if(selected)2.dp else 1.dp,if(selected)Color(0xFFFFCF59) else Color(0xFF4A7D9E),RoundedCornerShape(12.dp))
+        .clickable(enabled=remaining>0,onClick=onClick)
+        .padding(horizontal=if(compact)7.dp else 10.dp,vertical=3.dp),
+        horizontalAlignment=Alignment.CenterHorizontally) {
+        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+            if(sprite!=null) androidx.compose.foundation.Image(
+                painter=androidx.compose.ui.graphics.painter.BitmapPainter(sprite.asImageBitmap()),
+                contentDescription=title,
+                modifier=Modifier.size(if(compact)26.dp else 36.dp)
+            )
+            Text("×$remaining",color=if(remaining>0)Color.White else Color.Gray,
+                fontSize=if(compact)11.sp else 12.sp,fontWeight=FontWeight.Black)
+        }
+        Text(title,color=Color(0xFFFFE6AA),fontSize=if(compact)9.sp else 11.sp,
+            fontWeight=FontWeight.Bold,maxLines=1)
     }
 }
