@@ -30,6 +30,13 @@ jobs:
           gradle-version: '8.13'
       - name: Compile and inspect app
         run: gradle --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest
+      - name: Print physics-audit summary
+        if: always()
+        shell: bash
+        run: |
+          if ls app/build/test-results/testDebugUnitTest/TEST-*.xml >/dev/null 2>&1; then
+            grep -h -o 'PHYSICS_AUDIT[^<]*' app/build/test-results/testDebugUnitTest/TEST-*.xml || true
+          fi
       - name: Upload debug APK (testing, not store release)
         uses: actions/upload-artifact@v4
         with:
