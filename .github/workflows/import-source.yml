@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - BallDropChainReaction-source.zip
+      - .github/workflows/import-source.yml
   workflow_dispatch:
 
 permissions:
@@ -38,6 +39,7 @@ jobs:
           z.extractall("_imported")
           print(f"Validated and extracted {len(names)} files")
           PY
+          rm -rf _imported/BallDropChainReaction/.github  # preserve workflows: GitHub Actions token lacks workflows permission
           cp -a _imported/BallDropChainReaction/. .
           rm -rf _imported
 
@@ -45,7 +47,6 @@ jobs:
         shell: bash
         run: |
           rm -f BallDropChainReaction-source.zip
-          rm -f .github/workflows/import-source.yml
           git add -A
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -61,7 +62,9 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android API 36
         run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
