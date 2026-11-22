@@ -1,0 +1,60 @@
+name: Android emulator screenshot QA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/visual-qa.yml'
+      - 'app/**'
+permissions:
+  contents: read
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+      - name: Install target Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build actual APK
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Launch game on Android emulator and capture screen
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -camera-back none -camera-front none
+          script: |
+            set -e
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.mhmmad.balldropchainreaction/.MainActivity
+            sleep 12
+            mkdir -p screenshots
+            adb shell screencap -p /sdcard/ball-menu.png
+            adb pull /sdcard/ball-menu.png screenshots/menu.png
+            adb shell input tap 780 520
+            sleep 6
+            adb shell screencap -p /sdcard/ball-stage.png
+            adb pull /sdcard/ball-stage.png screenshots/after-play-tap.png
+            adb logcat -d -s AndroidRuntime:E > screenshots/crashes.txt || true
+      - name: Upload visual QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ball-drop-emulator-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 7
