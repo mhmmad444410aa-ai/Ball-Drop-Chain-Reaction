@@ -65,7 +65,7 @@ jobs:
             adb logcat -d -s AndroidRuntime:E > screenshots/crashes.txt || true
       - name: Upload visual QA evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ball-drop-emulator-screenshots
           path: screenshots/

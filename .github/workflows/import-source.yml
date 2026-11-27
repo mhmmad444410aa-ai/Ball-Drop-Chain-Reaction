@@ -84,7 +84,7 @@ jobs:
 
       - name: Publish debug APK for testing only
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ball-drop-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk

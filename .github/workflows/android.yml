@@ -51,14 +51,14 @@ jobs:
         run: |
           find "$HOME/.gradle/caches/modules-2/files-2.1/org.jbox2d/jbox2d-library" -name '*.jar' -print -quit | xargs -r -I{} cp '{}' jbox2d-library.jar
           test -s jbox2d-library.jar
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: jbox2d-physics-runtime
           path: jbox2d-library.jar
           if-no-files-found: error
           retention-days: 7
       - name: Upload debug APK (testing, not store release)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BallDropChainReaction-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
